@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECE 3140 Final Project - Three-Color Memory Game</title>
+  <link rel="stylesheet" href="style.css">
+
+  <style>
+  /* ── Interactive Module Diagram ─────────────────────────────── */
+  .dia-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 1.4rem;
+  }
+  .dia-svg-arrows {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .dia-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+  .dia-spacer    { height: 52px; }
+  .dia-spacer-sm { height: 36px; }
+
+  .dia-box {
+    border-radius: 9px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    text-align: center;
+    border: 2px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.15s ease;
+    position: relative;
+    min-width: 100px;
+  }
+  .dia-box:hover  { transform: translateY(-3px); filter: brightness(1.12); }
+  .dia-box:active { transform: translateY(-1px); }
+  .dia-box:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 3px; }
+
+  .dia-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.4;
+  }
+  .dia-name-sm { font-size: 0.68rem; opacity: 0.85; }
+  .dia-hint {
+    font-size: 0.66rem;
+    color: rgba(255,255,255,0.65);
+    margin-top: 3px;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* box colors */
+  .dia-green  { background: #1a7a40; border-color: #00e676; box-shadow: 0 0 14px rgba(0,230,118,0.25); }
+  .dia-purple { background: #5a2d82; border-color: #b06fd4; box-shadow: 0 0 14px rgba(176,111,212,0.25); }
+  .dia-blue   { background: #1a3a70; border-color: #2979ff; box-shadow: 0 0 14px rgba(41,121,255,0.25); }
+  .dia-amber  { background: #6b4600; border-color: #e6ad38; box-shadow: 0 0 14px rgba(230,173,56,0.25); }
+  .dia-red    { background: #7a1a1a; border-color: #ff2d55; box-shadow: 0 0 14px rgba(255,45,85,0.25); }
+
+  .dia-box:hover.dia-green  { box-shadow: 0 6px 22px rgba(0,230,118,0.4); }
+  .dia-box:hover.dia-purple { box-shadow: 0 6px 22px rgba(176,111,212,0.4); }
+  .dia-box:hover.dia-blue   { box-shadow: 0 6px 22px rgba(41,121,255,0.4); }
+  .dia-box:hover.dia-amber  { box-shadow: 0 6px 22px rgba(230,173,56,0.4); }
+  .dia-box:hover.dia-red    { box-shadow: 0 6px 22px rgba(255,45,85,0.4); }
+
+  /* legend */
+  .dia-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 18px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.06em;
+  }
+  .dia-legend-item { display: flex; align-items: center; gap: 5px; }
+  .dia-legend-dot  { width: 10px; height: 10px; border-radius: 2px; }
+
+  .dia-hint-text {
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    color: rgba(121,134,203,0.55);
+    margin-top: 10px;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Modal overlay ──────────────────────────────────────────── */
+  .dia-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.72);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .dia-overlay.active { display: flex; }
+
+  .dia-modal {
+    background: #0d0f1c;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    max-width: 540px;
+    width: 100%;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+    overflow: hidden;
+    animation: dia-pop 0.18s ease;
+  }
+  @keyframes dia-pop {
+    from { opacity: 0; transform: scale(0.93) translateY(10px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0); }
+  }
+
+  .dia-modal-header {
+    padding: 20px 22px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .dia-modal-icon {
+    width: 40px; height: 40px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #fff;
+    flex-shrink: 0;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .dia-modal-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.95rem;
+    color: #e8eaf6;
+  }
+  .dia-modal-file {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 3px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  .dia-modal-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.4rem;
+    color: var(--text-muted);
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .dia-modal-close:hover { color: #e8eaf6; background: rgba(255,255,255,0.06); }
+
+  .dia-modal-body {
+    padding: 20px 22px 24px;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: rgba(232,234,246,0.8);
+  }
+  .dia-modal-body p  { margin-bottom: 10px; }
+  .dia-modal-body p:last-child { margin-bottom: 0; }
+  .dia-modal-body ul { padding-left: 16px; margin-bottom: 10px; }
+  .dia-modal-body li { margin-bottom: 4px; }
+  .dia-modal-body code {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.82em;
+    background: rgba(255,255,255,0.07);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #c5cae9;
+  }
+  .dia-modal-body strong { font-weight: 500; color: #e8eaf6; }
+
+  .dia-modal-tag {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    color: #fff;
+    margin-bottom: 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  </style>
+</head>
+<body>
+
+<!-- Decorative ambient orbs -->
+<div class="orbs-bg" aria-hidden="true">
+  <div class="orb orb-r"></div>
+  <div class="orb orb-g"></div>
+  <div class="orb orb-b"></div>
+</div>
+
+<header>
+  <a class="github-btn" href="https://www.youtube.com/watch?v=Dr0HzHyn0aM" target="_blank">
+    View Video
+  </a>
+
+  <div class="header-dots" aria-hidden="true">
+    <div class="dot dot-r"></div>
+    <div class="dot dot-g"></div>
+    <div class="dot dot-b"></div>
+  </div>
+
+  <h1>Three-Color Memory Game</h1>
+  <p>ECE 3140 / CS 3420 Final Project &nbsp;&bull;&nbsp; Saanvi Jain (sj727) &amp; Itohan Eke (ite4)</p>
+</header>
+
+<nav>
+  <a href="#introduction">Introduction</a>
+  <a href="#overview">System Overview</a>
+  <a href="#play">Play</a>
+  <a href="#video">Video</a>
+  <a href="#description">System Description</a>
+  <a href="#testing">Testing</a>
+  <a href="#resources">Resources</a>
+  <a href="#team">Work Distribution</a>
+  <a href="#ai">AI Usage</a>
+</nav>
+
+<main>
+
+<section id="introduction">
+  <h2>Introduction</h2>
+  <p>
+    Our project implements a three-color memory game inspired by Simon Says on the FRDM-KL46Z board.
+    The system generates a sequence of colors and displays them using LEDs. The user must then repeat
+    the sequence using the onboard buttons. If the input is correct, the game advances to the next round
+    and the sequence gets longer.
+  </p>
+  <p>
+    This project combines several ideas from class, including GPIO, timing control,
+    modular embedded software design, and state-based game flow. Our goal was to build a complete,
+    interactive embedded system that was both reliable and easy to test.
+  </p>
+  <p>
+    We successfully implemented the core gameplay, including sequence generation, LED playback,
+    button decoding, and correctness checking. We also learned how important timing, debouncing,
+    and modular testing are in embedded systems.
+  </p>
+</section>
+
+<section id="overview">
+  <h2>System Overview</h2>
+  <p>
+    The game is structured around a simple state machine. At startup, the board initializes all modules.
+    It then generates and displays a color sequence, waits for user input, compares the input against the
+    stored sequence, and either advances to the next round or ends the game.
+  </p>
+
+  <h3>Game Flow</h3>
+  <ol>
+    <li><b>Startup:</b> Initialize LEDs, buttons, timer, display, and random generator.</li>
+    <li><b>Sequence Display:</b> Show the current sequence using LEDs.</li>
+    <li><b>User Input:</b> Read button presses and map them to colors.</li>
+    <li><b>Validation:</b> Compare user input to the stored sequence.</li>
+    <li><b>Next Round / Game Over:</b> Advance if correct, otherwise end the game.</li>
+  </ol>
+
+  <h3>Module / System Architecture</h3>
+  <p style="font-size:0.88rem;color:rgba(121,134,203,0.8);margin-bottom:1rem;">
+    Click any module below to learn about its role in the system.
+  </p>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       INTERACTIVE MODULE DIAGRAM
+       ═══════════════════════════════════════════════════════════ -->
+  <div class="dia-wrap" id="dia-wrap">
+    <svg class="dia-svg-arrows" id="dia-arrows"></svg>
+
+    <!-- Row 1: system_init -->
+    <div class="dia-row" id="dia-r1">
+      <div class="dia-box dia-green" id="dia-sysinit" tabindex="0"
+           onclick="diaOpen('sysinit')" onkeydown="if(event.key==='Enter')diaOpen('sysinit')">
+        <div class="dia-name">system_init.c / .h</div>
+        <div class="dia-hint">Initializes all modules</div>
+      </div>
+    </div>
+
+    <div class="dia-spacer"></div>
+
+    <!-- Row 2: game -->
+    <div class="dia-row" id="dia-r2">
+      <div class="dia-box dia-purple" id="dia-game" tabindex="0"
+           onclick="diaOpen('game')" onkeydown="if(event.key==='Enter')diaOpen('game')"
+           style="min-width:170px;">
+        <div class="dia-name">game.c / .h</div>
+        <div class="dia-hint">Central FSM controller</div>
+      </div>
+    </div>
+
+    <div class="dia-spacer"></div>
+
+    <!-- Row 3: five modules -->
+    <div class="dia-row" id="dia-r3">
+      <div class="dia-box dia-blue" id="dia-buttons" tabindex="0"
+           onclick="diaOpen('buttons')" onkeydown="if(event.key==='Enter')diaOpen('buttons')">
+        <div class="dia-name">buttons.c / .h</div>
+        <div class="dia-hint">SW1 &amp; SW3 input</div>
+      </div>
+      <div class="dia-box dia-blue" id="dia-leds" tabindex="0"
+           onclick="diaOpen('leds')" onkeydown="if(event.key==='Enter')diaOpen('leds')">
+        <div class="dia-name">leds.c / .h</div>
+        <div class="dia-hint">LED sequences</div>
+      </div>
+      <div class="dia-box dia-amber" id="dia-timer" tabindex="0"
+           onclick="diaOpen('timer')" onkeydown="if(event.key==='Enter')diaOpen('timer')">
+        <div class="dia-name">timer.c / .h</div>
+        <div class="dia-hint">Delays + timeouts</div>
+      </div>
+      <div class="dia-box dia-amber" id="dia-rndm" tabindex="0"
+           onclick="diaOpen('rndm')" onkeydown="if(event.key==='Enter')diaOpen('rndm')">
+        <div class="dia-name">rndm.c / .h</div>
+        <div class="dia-hint">LCG random sequence</div>
+      </div>
+      <div class="dia-box dia-blue" id="dia-display" tabindex="0"
+           onclick="diaOpen('display')" onkeydown="if(event.key==='Enter')diaOpen('display')">
+        <div class="dia-name">display.c / .h</div>
+        <div class="dia-hint">LCD round counter</div>
+      </div>
+    </div>
+
+    <div class="dia-spacer-sm"></div>
+
+    <!-- Row 4: LED driver (aligned under leds) -->
+    <div class="dia-row" id="dia-r4">
+      <div style="min-width:100px;"></div><!-- spacer -->
+      <div class="dia-box dia-red" id="dia-driver" tabindex="0"
+           onclick="diaOpen('driver')" onkeydown="if(event.key==='Enter')diaOpen('driver')">
+        <div class="dia-name">led_lowlevel.s</div>
+        <div class="dia-name dia-name-sm">3140_led.c / .h</div>
+        <div class="dia-hint">Hardware driver</div>
+      </div>
+      <div style="min-width:100px;"></div><!-- spacer -->
+    </div>
+  </div><!-- /dia-wrap -->
+
+  <!-- Legend -->
+  <div class="dia-legend">
+    <div class="dia-legend-item"><div class="dia-legend-dot" style="background:#1a7a40;border:1px solid #00e676;"></div>Init</div>
+    <div class="dia-legend-item"><div class="dia-legend-dot" style="background:#5a2d82;border:1px solid #b06fd4;"></div>Controller</div>
+    <div class="dia-legend-item"><div class="dia-legend-dot" style="background:#1a3a70;border:1px solid #2979ff;"></div>I/O</div>
+    <div class="dia-legend-item"><div class="dia-legend-dot" style="background:#6b4600;border:1px solid #e6ad38;"></div>Utility</div>
+    <div class="dia-legend-item"><div class="dia-legend-dot" style="background:#7a1a1a;border:1px solid #ff2d55;"></div>Hardware</div>
+    <div class="dia-legend-item" style="color:rgba(121,134,203,0.4);">- - &#8594; init flow &nbsp;&#8212;&#8212;&#8594; runtime</div>
+  </div>
+  <p class="dia-hint-text">&#8593; click any block to open description</p>
+
+  <!-- Static diagram image -->
+  <h3 style="margin-top:2rem;">Game Flow / FSM</h3>
+  <img src="assets/background-diagram.png" alt="System diagram showing buttons, game logic, timer, random generator, LEDs, and optional display">
+</section>
+
+<!-- Modal overlay (lives outside section so it can be position:fixed) -->
+<div class="dia-overlay" id="dia-overlay" onclick="diaCloseIfBg(event)">
+  <div class="dia-modal">
+    <div class="dia-modal-header">
+      <div class="dia-modal-icon" id="dm-icon"></div>
+      <div>
+        <div class="dia-modal-title" id="dm-title"></div>
+        <div class="dia-modal-file"  id="dm-file"></div>
+      </div>
+      <button class="dia-modal-close" onclick="diaClose()" aria-label="Close">&#215;</button>
+    </div>
+    <div class="dia-modal-body">
+      <span class="dia-modal-tag" id="dm-tag"></span>
+      <div id="dm-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     INTERACTIVE GAME SECTION
+     ══════════════════════════════════════════════════════════════ -->
+<section id="play">
+  <h2>Play the Game</h2>
+  <p>
+    Try it yourself! Watch the color sequence light up across the LED strip, then repeat it in order
+    using the buttons below. The sequence grows by one color each round — reach Level 10 to win and reset.
+  </p>
+
+  <div class="game-board">
+
+    <div class="game-header">
+      <div class="level-badge">
+        LEVEL <span class="lvl-num" id="g-level">&mdash;</span><span class="lvl-max"> / 10</span>
+      </div>
+      <div class="game-phase-label" id="g-phase">Press START to play</div>
+    </div>
+
+    <!-- LED display strip — 10 slots built by JS -->
+    <div class="led-strip" id="led-strip"></div>
+
+    <!-- Status text -->
+    <div class="game-status" id="g-status">Watch the sequence, then repeat it.</div>
+
+    <!-- Three game buttons -->
+    <div class="game-buttons">
+      <button class="game-btn btn-red"   id="gbtn-red"   onclick="playerInput('red')"   disabled>RED</button>
+      <button class="game-btn btn-green" id="gbtn-green" onclick="playerInput('green')" disabled>GREEN</button>
+      <button class="game-btn btn-blue"  id="gbtn-blue"  onclick="playerInput('blue')"  disabled>BLUE</button>
+    </div>
+
+    <button class="start-btn" id="start-btn" onclick="startGame()">&#9654; START GAME</button>
+
+  </div>
+</section>
+
+<section id="video">
+  <h2>Video</h2>
+  <p>
+    The video below demonstrates the gameplay and briefly explains the implementation.
+  </p>
+  <div class="video-wrapper">
+    <iframe
+      src="https://www.youtube.com/watch?v=Dr0HzHyn0aM"
+      title="Three-Color Memory Game Demo"
+      frameborder="0"
+      allowfullscreen>
+    </iframe>
+  </div>
+</section>
+
+<section id="description">
+  <h2>System Description</h2>
+  <p>
+    The project is organized into separate modules so that each file handles one main responsibility.
+    This made development and debugging easier, especially during integration.
+  </p>
+  <ul>
+    <li><b>main.c</b> initializes the system and starts the main game loop.</li>
+    <li><b>system_init.c / system_init.h</b> initializes all modules, including LEDs, display, timer, and buttons.</li> 
+    <li><b>game.c / game.h</b> manage the game state machine and sequence checking logic.</li>
+    <li><b>buttons.c / buttons.h</b> handle button input, debouncing, and one-time press events.</li>
+    <li><b>leds.c / leds.h</b> control LED output for sequence playback and success/failure feedback.</li>
+    <li><b>timer.c / timer.h</b> provide reusable timing functions and timeout helpers.</li>
+    <li><b>rndm.c / rndm.h</b> generate pseudo-random color values for the sequence.</li>
+    <li><b>display.c / display.h</b> used to show current level/round number on the LCD display.</li>
+  </ul>
+
+  <h3>Input Handling</h3>
+  <p>
+    The user interacts with the game using SW1 and SW3. Because mechanical buttons can bounce,
+    the button module uses software debouncing to avoid false or repeated inputs. It tracks raw input,
+    stable debounced state, and one-time press events separately. This made the game logic much more reliable.
+  </p>
+
+  <h3>Color Mapping</h3>
+  <p>
+    Since the game uses three colors but the board only provides two buttons, button combinations are
+    used to represent the three possible inputs. Single-button presses represent two colors, and pressing
+    both buttons together represents the third color.
+  </p>
+
+  <h3>Sequence Generation and Playback</h3>
+  <p>
+    The random generator creates values corresponding to valid game colors. These values are stored in
+    an array representing the current round's sequence. The LED module then plays the sequence back to
+    the user with timing delays so that each color is clearly visible.
+  </p>
+
+  <h3>Game Logic</h3>
+  <p>
+    The game logic compares user input against the stored sequence in real time. If the user enters the
+    wrong color, the game immediately transitions to a failure state. If the full sequence is entered correctly,
+    the level increases and a new round begins.
+  </p>
+
+  <h3>Timing</h3>
+  <p>
+    Timing functions are used both for sequence playback and for user interaction. Delays help control
+    LED visibility, and timeout helpers are used to support features such as limiting how long the user can
+    wait before entering input.
+  </p>
+</section>
+
+<section id="testing">
+  <h2>Testing</h2>
+  <p>
+    We tested each module independently before integrating the full system.
+  </p>
+  <ul>
+    <li><b>Buttons:</b> Verified debouncing, stable states, and one-time press event detection using LED feedback.</li>
+    <li><b>Timer:</b> Tested delay functions visually and verified timeout logic using software counter checks.</li>
+    <li><b>LEDs:</b> Confirmed correct color output and checked sequence playback timing.</li>
+    <li><b>Random Generator:</b> Verified that generated values stayed within the valid color range and varied across runs.</li>
+    <li><b>Game Logic:</b> Tested correct sequences, incorrect sequences, partial input, and repeated rounds.</li>
+    <li><b>Display:</b> Confirmed the LCD display increments a counter/number by 1.</li>
+  </ul>
+  <p>
+    During integration, we found that timing and input handling were the most important parts to debug.
+    One issue we encountered was inconsistent button detection due to button bounce, which we addressed
+    by refining the debounce logic. We also adjusted LED timing delays to make the sequence easier to follow.
+  </p>
+  <p>
+    In addition to module-level tests, we repeatedly played through the game to verify that progression,
+    failure conditions, and user feedback all behaved as expected.
+  </p>
+</section>
+
+<section id="resources">
+  <h2>Resources</h2>
+  <p>
+    We used course materials, lecture slides, and reference code from previous labs. We also referred to
+    the MKL46Z4 reference manual for GPIO configuration and timing behavior. We also used the given LCD Library & files.
+  </p>
+  <p>
+    No external codebases were used beyond course-provided resources.
+  </p>
+</section>
+
+<section id="team">
+  <h2>Work Distribution</h2>
+  <p>
+    We divided the project by modules and followed a structured timeline so that development could happen
+    in parallel while keeping integration manageable.
+  </p>
+
+  <h3>Development Timeline</h3>
+  <ul>
+    <li><b>Initial setup:</b> Itohan created the MCUXpresso project, repository, and file skeletons, while Saanvi created the website outline and README.</li>
+    <li><b>Core modules:</b>
+      <ul>
+        <li>Buttons module implemented by Itohan; Saanvi created corresponding test file and test cases.</li>
+        <li>LED module implemented by Saanvi; Itohan created corresponding test file and test cases.</li>
+        <li>Timer module implemented by Itohan; Saanvi created corresponding test file and test cases.</li>
+        <li>Random generator implemented by Saanvi; Itohan created corresponding test file and test cases.</li>
+        <li>Game logic implemented by Itohan; Saanvi created corresponding test file and test cases.</li>
+        <li>Display logic implemented by Itohan; Itohan created corresponding test file and test cases.</li>
+      </ul>
+    </li>
+    <li><b>Polish and integration:</b> Both team members worked on refining timing, speed, LED visibility, input decoding, sequence comparison, level progression, score tracking, and game over behavior.</li>
+    <li><b>Finalization:</b> We completed full system integration and testing, then finished the website and video documentation.</li>
+  </ul>
+  <p>
+    Throughout the project, we continuously tested individual components before combining them into the
+    full system. Most challenges were related to timing, state transitions, and reliable input handling,
+    which we resolved through iterative debugging.
+  </p>
+  <p>
+    Both team members also contributed to debugging, integration, and final system validation.
+  </p>
+</section>
+
+<section id="ai">
+  <h2>AI Usage</h2>
+  <p>
+    We have not used any AI models for this project.
+  </p>
+</section>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════════════
+     GAME LOGIC
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  /* ── Constants ─────────────────────────────────────────────── */
+  var COLORS     = ['red', 'green', 'blue'];
+  var COLOR_HEX  = { red: '#ff2d55', green: '#00e676', blue: '#2979ff' };
+  var COLOR_GLOW = {
+    red:   'rgba(255,45,85,0.75)',
+    green: 'rgba(0,230,118,0.75)',
+    blue:  'rgba(41,121,255,0.75)'
+  };
+  var LED_COUNT   = 10;
+  var START_LEVEL = 3;
+  var MAX_LEVEL   = 10;
+  var FLASH_ON    = 480;
+  var FLASH_GAP   = 180;
+  var PRE_DELAY   = 700;
+  var WIN_PAUSE   = 1300;
+  var FAIL_PAUSE  = 1400;
+
+  /* ── State ─────────────────────────────────────────────────── */
+  var sequence  = [];
+  var playerPos = 0;
+  var phase     = 'idle';
+
+  /* ── DOM ───────────────────────────────────────────────────── */
+  var ledStrip = document.getElementById('led-strip');
+  var statusEl = document.getElementById('g-status');
+  var phaseEl  = document.getElementById('g-phase');
+  var levelEl  = document.getElementById('g-level');
+  var startBtn = document.getElementById('start-btn');
+
+  for (var i = 0; i < LED_COUNT; i++) {
+    var d = document.createElement('div');
+    d.className = 'led led-inactive';
+    d.id = 'led-' + i;
+    ledStrip.appendChild(d);
+  }
+
+  function sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+  function randDiff(last) {
+    var pool = last ? COLORS.filter(function(c){ return c !== last; }) : COLORS;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  function led(i)  { return document.getElementById('led-' + i); }
+  function gbtn(c) { return document.getElementById('gbtn-' + c); }
+
+  function setStatus(msg, cls) {
+    statusEl.textContent = msg;
+    statusEl.className   = 'game-status' + (cls ? ' s-' + cls : '');
+  }
+  function setPhase(msg, cls) {
+    phaseEl.textContent = msg;
+    phaseEl.className   = 'game-phase-label' + (cls ? ' phase-' + cls : '');
+  }
+  function setBtns(on) { COLORS.forEach(function(c){ gbtn(c).disabled = !on; }); }
+
+  function resetLEDs() {
+    for (var i = 0; i < LED_COUNT; i++) {
+      var el = led(i);
+      el.style.background = '';
+      el.style.boxShadow  = '';
+      el.className = 'led ' + (i < sequence.length ? 'led-ready' : 'led-inactive');
+    }
+  }
+
+  function flashLED(index, color) {
+    return new Promise(function(resolve) {
+      var el = led(index);
+      el.style.background = COLOR_HEX[color];
+      el.style.boxShadow  = '0 0 14px ' + COLOR_GLOW[color] + ', 0 0 34px ' + COLOR_GLOW[color];
+      setTimeout(function() { el.style.background = ''; el.style.boxShadow = ''; resolve(); }, FLASH_ON);
+    });
+  }
+
+  function confirmLED(index, color) {
+    var el = led(index);
+    el.style.background = COLOR_HEX[color];
+    el.style.boxShadow  = '0 0 8px ' + COLOR_GLOW[color] + ', 0 0 20px ' + COLOR_GLOW[color];
+    el.className = 'led led-ready';
+  }
+
+  function failFlash() {
+    return new Promise(function(resolve) {
+      var count = 0;
+      function step() {
+        if (count >= 6) { resolve(); return; }
+        var on = (count % 2 === 0);
+        for (var i = 0; i < sequence.length; i++) {
+          var el = led(i);
+          if (on) { el.style.background = '#ff2d55'; el.style.boxShadow = '0 0 18px rgba(255,45,85,0.9)'; }
+          else    { el.style.background = ''; el.style.boxShadow = ''; }
+        }
+        count++;
+        setTimeout(step, 200);
+      }
+      step();
+    });
+  }
+
+  function winFlash() {
+    return new Promise(function(resolve) {
+      var passes = 0;
+      function sweep() {
+        if (passes >= 2) { resolve(); return; }
+        var i = 0;
+        function next() {
+          if (i >= sequence.length) {
+            setTimeout(function(){ resetLEDs(); passes++; setTimeout(sweep, 150); }, 200);
+            return;
+          }
+          var el = led(i);
+          el.style.background = '#00e676';
+          el.style.boxShadow  = '0 0 18px rgba(0,230,118,0.9)';
+          i++;
+          setTimeout(next, 55);
+        }
+        next();
+      }
+      sweep();
+    });
+  }
+
+  window.startGame = function() {
+    startBtn.style.display = 'none';
+    sequence = [];
+    for (var i = 0; i < START_LEVEL; i++) {
+      sequence.push(randDiff(i > 0 ? sequence[i - 1] : null));
+    }
+    beginRound();
+  };
+
+  function beginRound() {
+    phase     = 'showing';
+    playerPos = 0;
+    levelEl.textContent = sequence.length;
+    resetLEDs();
+    setStatus('Watch the sequence\u2026', 'watch');
+    setPhase('Showing sequence', 'watch');
+    setBtns(false);
+    sleep(PRE_DELAY).then(function() { return playSequence(0); });
+  }
+
+  function playSequence(i) {
+    if (i >= sequence.length) {
+      phase = 'input';
+      setStatus('Your turn \u2014 repeat the sequence!', 'input');
+      setPhase('Player input', 'input');
+      setBtns(true);
+      return;
+    }
+    flashLED(i, sequence[i]).then(function() { return sleep(FLASH_GAP); }).then(function() { playSequence(i + 1); });
+  }
+
+  window.playerInput = function(color) {
+    if (phase !== 'input') return;
+    if (color === sequence[playerPos]) {
+      confirmLED(playerPos, color);
+      playerPos++;
+      if (playerPos === sequence.length) {
+        phase = 'over';
+        setBtns(false);
+        if (sequence.length >= MAX_LEVEL) {
+          setStatus('\uD83C\uDFC6 Max level reached! Resetting to Level 3\u2026', 'win');
+          setPhase('You win!', 'win');
+          winFlash().then(function() { setTimeout(window.startGame, 800); });
+        } else {
+          setStatus('\u2713 Correct! Level up!', 'win');
+          setPhase('Level clear!', 'win');
+          setTimeout(function() {
+            sequence.push(randDiff(sequence[sequence.length - 1]));
+            beginRound();
+          }, WIN_PAUSE);
+        }
+      }
+    } else {
+      phase = 'over';
+      setBtns(false);
+      setStatus('\u2717 Wrong! Restarting from Level 3\u2026', 'fail');
+      setPhase('Game over', 'fail');
+      failFlash().then(function() { setTimeout(window.startGame, FAIL_PAUSE); });
+    }
+  };
+
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     DIAGRAM LOGIC
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+/* ── Module descriptions ──────────────────────────────────────── */
+var DIA_MODULES = {
+  sysinit: {
+    title: 'system_init',
+    file:  'system_init.c / system_init.h',
+    color: '#1a7a40',
+    tag:   'Initialization',
+    content: '<p><strong>Brings up every hardware component in a precise order</strong> dictated by clock dependencies. The sequence inside <code>System_Init()</code> is not arbitrary, each step must follow the previous one or timing breaks system-wide.</p><ul><li><strong>1. <code>Leds_Init()</code></strong> — calls <code>led_init()</code>, which configures LED pins and sets the board to <strong>15 MHz</strong></li><li><strong>2. <code>Display_Init()</code></strong> — calls <code>init_lcd()</code>, which raises the clock to <strong>48 MHz</strong>. Every timing assumption made after this point must use 48 MHz</li><li><strong>3. <code>Timer_Init()</code></strong> — initializes the software counter after the final clock is stable</li><li><strong>4. <code>Leds_AllOff()</code></strong> — clears LEDs using the 48 MHz serial routine (<code>set_led_48MHz</code>), since the original <code>set_led</code> was calibrated for 15 MHz</li><li><strong>5. <code>Buttons_Init()</code></strong> — configures SW1 and SW3 GPIO pins last</li></ul></p>'
+  },
+  game: {
+    title: 'game',
+    file:  'game.c / game.h',
+    color: '#5a2d82',
+    tag:   'Finite State Machine',
+    content: '<p><strong>The central FSM that drives the entire game.</strong> <code>Game_Run()</code> loops forever. There are six states of the game.</p><ul><li><strong>IDLE</strong> — flashes green, waits for any button press to trigger sequence generation</li><li><strong>SHOW_SEQUENCE</strong> — calls a function that plays the LED sequence then moves immediately to READ_INPUT</li><li><strong>READ_INPUT</strong> — polls button inputs in a loop and enforces timeouts if the user takes too long to respond after the LED sequence plays and between successive presses</li><li><strong>CHECK_INPUT</strong> — compares the user input to the given LED sequence; correct input advances the length of the sequence, wrong input goes to GAME_OVER</li><li><strong>ROUND_OUTCOME</strong> — plays success pattern if the user input is correct; if the LED sequence at max length resets to IDLE, otherwise appends a new color to the LED sequence and increments the round level counter on LCD display</li><li><strong>GAME_OVER</strong> — plays failure pattern, resets LCD to 1, returns to IDLE</li></ul></p>'
+  },
+  buttons: {
+    title: 'buttons',
+    file:  'buttons.c / buttons.h',
+    color: '#1a3a70',
+    tag:   'User Input',
+    content: '<p><strong>Manages SW1 (PTC3) and SW3 (PTC12)</strong> on the FRDM-KL46Z. Both pins are active-low, pressing a button pulls the pin to 0. </p><p>Three layers of state are tracked simultaneously each call to <code>Buttons_Update()</code>:</p><ul><li><strong>Raw state</strong> — the immediate hardware reading from <code>PDIR</code></li><li><strong>Stable state</strong> — only accepted after consecutive identical raw readings. This prevents mechanical contact bounce from registering as multiple presses</li><li><strong>Press event</strong> — a one-shot flag set the moment the stable state transitions from NONE to any pressed state</li></ul><p>Return values: <code>BUTTON_SW1</code>, <code>BUTTON_SW3</code>, <code>BUTTON_BOTH</code>, <code>BUTTON_NONE</code>. The BOTH state is the mechanism that allows three game colors from just two physical buttons.</p>'
+  },
+  leds: {
+    title: 'leds',
+    file:  'leds.c / leds.h',
+    color: '#1a3a70',
+    tag:   'Visual Output',
+    content: '<p><strong>Controls three distinct external LEDs</strong> — one direct GPIO and two serial, each mapped to a game color:</p><ul><li><strong>RED → LED0</strong> via <code>red_on()</code> / <code>red_off()</code> (direct GPIO)</li><li><strong>GREEN → LED1</strong> via <code>set_led_48MHz()</code> </li><li><strong>BLUE → LED2</strong> via <code>set_led_48MHz()</code> </li></ul><p>Key behaviors:</p><ul><li><strong><code>PlaySequence()</code></strong> — loops through the color array</li><li><strong><code>ShowSuccess()</code></strong> — 3× green blink</li><li><strong><code>ShowFailure()</code></strong> — 3× red blink</li><li><strong><code>ShowUserInput()</code></strong> — quick flash of the player\'s chosen color as immediate feedback</li><li><strong><code>ButtonToColor()</code></strong> — SW1 → RED, SW3 → GREEN, BOTH → BLUE</li></ul>'
+  },
+  timer: {
+    title: 'timer',
+    file:  'timer.c / timer.h',
+    color: '#6b4600',
+    tag:   'Timing Utility',
+    content: '<p><strong>Software timer.</strong> Maintains a single counter that the FSM increments manually.</p><p>Five named wait functions used by the FSM:</p><ul><li><code>Timer_WaitColorOn()</code> — how long each sequence color stays lit</li><li><code>Timer_WaitBetweenColors()</code> — gap between sequence steps during playback</li><li><code>Timer_WaitAfterSuccess()</code> — pause after a round is cleared</li><li><code>Timer_WaitAfterFailure()</code> — pause before resetting after game over</li><li><code>Timer_WaitNextLevel()</code> — pause before showing the next level\'s sequence</li></ul><p><code>Timer_HasTimedOut(start, timeout)</code> returns true when <code>(counter − start) ≥ timeout</code>, enforcing the user input deadlines in READ_INPUT.</p>'  },
+  rndm: {
+    title: 'rndm',
+    file:  'rndm.c / rndm.h',
+    color: '#6b4600',
+    tag:   'Utility',
+    content: '<p><strong>Linear Congruential Generator (LCG)</strong> using the formula:</p><p><code>state = (1664525 × state) + 1013904223</code></p><p>The output value is reduced to a number between 0–2 and mapped to one of the three colors:</p><ul><li><strong>0 → RED</strong></li><li><strong>1 → GREEN</strong></li><li><strong>2 → BLUE</strong></li></ul><p>This allows the system to append one new pseudo-random color to the existing sequence each round.</p>'  },
+  display: {
+    title: 'display',
+    file:  'display.c / display.h',
+    color: '#1a3a70',
+    tag:   'LCD Output',
+    content: '<p><strong>Uses the course provided LCD library</strong> to show the current round number on the FRDM-KL46Z\'s four-digit segment LCD display.</p><p>Counter behavior:</p><ul><li>Starts at <strong>1</strong> and is shown immediately on initialization</li><li><code>Display_IncrementCounter()</code> — adds 1 and refreshes the LCD after each successful round</li><li><code>Display_ResetCounter()</code> — returns to 1 on game over</li></ul>'  },
+  driver: {
+    title: 'LED Low-Level Driver',
+    file:  'led_lowlevel.s &middot; 3140_led.c / 3140_led.h',
+    color: '#7a1a1a',
+    tag:   'Hardware / Assembly',
+    content: '<p><strong>Implementations for two clock speeds for the LEDs.</strong></p><ul><li><strong><code>set_led()</code></strong> — given original 15 MHz implementation called during <code>led_init()</code> at startup before the LCD raises the clock.</li><li><strong><code>set_led_48MHz()</code></strong> — custom implementation added for this project to work at 48 MHz.</li></ul>'  }
+};
+
+/* ── Draw SVG arrows ─────────────────────────────────────────── */
+function diaDrawArrows() {
+  var svg  = document.getElementById('dia-arrows');
+  var wrap = document.getElementById('dia-wrap');
+  var wr   = wrap.getBoundingClientRect();
+
+  function cx(id) {
+    var el = document.getElementById(id);
+    var r  = el.getBoundingClientRect();
+    return {
+      x:      r.left - wr.left + r.width  / 2,
+      y:      r.top  - wr.top  + r.height / 2,
+      top:    r.top  - wr.top,
+      bottom: r.top  - wr.top  + r.height,
+    };
+  }
+
+  var defs = '<defs><marker id="da" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#4a5080" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>';
+
+  function ln(x1,y1,x2,y2,dash) {
+    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#4a5080" stroke-width="1.5" stroke-linecap="round" '+(dash||'')+' marker-end="url(#da)"/>';
+  }
+
+  var si  = cx('dia-sysinit');
+  var gm  = cx('dia-game');
+  var bt  = cx('dia-buttons');
+  var ld  = cx('dia-leds');
+  var tm  = cx('dia-timer');
+  var rn  = cx('dia-rndm');
+  var dp  = cx('dia-display');
+  var dr  = cx('dia-driver');
+
+  var html = defs;
+  // system_init → game (dashed)
+  html += '<line x1="'+si.x+'" y1="'+si.bottom+'" x2="'+gm.x+'" y2="'+(gm.top-5)+'" stroke="#4a5080" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#da)"/>';
+  // game → sub-modules
+  [bt, ld, tm, rn, dp].forEach(function(m) {
+    html += ln(gm.x, gm.bottom, m.x, m.top - 5);
+  });
+  // leds → driver
+  html += ln(ld.x, ld.bottom, dr.x, dr.top - 5);
+
+  svg.innerHTML = html;
+  svg.setAttribute('height', wrap.offsetHeight);
+}
+
+window.addEventListener('load',   diaDrawArrows);
+window.addEventListener('resize', diaDrawArrows);
+
+/* ── Modal open/close ────────────────────────────────────────── */
+window.diaOpen = function(key) {
+  var m = DIA_MODULES[key];
+  var icon = document.getElementById('dm-icon');
+  icon.style.background = m.color;
+  icon.textContent = m.title.substring(0, 3).toUpperCase();
+  document.getElementById('dm-title').textContent   = m.title;
+  document.getElementById('dm-file').innerHTML      = m.file;
+  var tag = document.getElementById('dm-tag');
+  tag.style.background = m.color;
+  tag.textContent = m.tag;
+  document.getElementById('dm-content').innerHTML   = m.content;
+  document.getElementById('dia-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+};
+
+window.diaClose = function() {
+  document.getElementById('dia-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+};
+
+window.diaCloseIfBg = function(e) {
+  if (e.target === document.getElementById('dia-overlay')) diaClose();
+};
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') diaClose();
+});
+</script>
+
+</body>
+</html>
